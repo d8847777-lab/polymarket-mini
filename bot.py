@@ -4,7 +4,10 @@ from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import sqlite3
 import random
 from datetime import datetime, timedelta
-
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import io
 # ===================== НАСТРОЙКИ =====================
 VK_TOKEN = "vk1.a.R3BzWRXp0snn9Ipz-WbWPC31QB3zcE4abLHIaX6WsimX8-CA_Z1NNRaJ1y1ZiVS7Jpw5yjVjrdVZ8yLuIp5zK6ctfP5u7MXMG-yF_FxLL2UaLQT7XQPtUolySZm9efjL4s8Ii_eakMjyml0MhdDY_mPoBss0dy7KWZxt5Ru9-uA0yqvYUdAHU2kLPMkZmfuApdBiDVrJ-7rMle9eg1eHyg"
 GROUP_ID = 238310451
@@ -173,13 +176,51 @@ for event in longpoll.listen():
             market = get_market(market_id)
             if market:
                 p_yes, p_no = get_price(market)
+                
+                # Строим график
+                c.execute("SELECT yes_tokens, no_tokens FROM markets WHERE id=?", (market_id,))
+                row = c.fetchone()
+                yes = row[0]
+                no = row[1]
+                total = yes + no
+                price_yes = no / total if total > 0 else 0.5
+                price_no = yes / total if total > 0 else 0.5
+                
+                # Симулируем историю цен (упрощённо)
+                history_yes = []
+                history_no = []
+                for i in range(10):
+                    factor = random.uniform(0.9, 1.1)
+                    history_yes.append(round(price_yes * factor, 3))
+                    history_no.append(round(price_no * factor, 3))
+                
+                fig, ax = plt.subplots(figsize=(6, 3))
+                ax.plot(range(10), history_yes, 'g-', label='Да', linewidth=2)
+                ax.plot(range(10), history_no, 'r-', label='Нет', linewidth=2)
+                ax.set_title(f"Рынок {market_id}: {market[1][:30]}...", fontsize=10)
+                ax.set_ylabel('Цена (FORT)')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+                plt.tight_layout()
+                
+                buf = io.BytesIO()
+                plt.savefig(buf, format='png', dpi=80)
+                buf.seek(0)
+                plt.close()
+                
+                # Загружаем в ВК
+                upload = vk_api.VkUpload(vk_session)
+                photo = upload.photo_messages(buf)[0]
+                attachment = f"photo{photo['owner_id']}_{photo['id']}"
+                
                 kb = VkKeyboard(one_time=True)
                 kb.add_button(f'Купить Да {market_id}', VkKeyboardColor.POSITIVE)
                 kb.add_button(f'Купить Нет {market_id}', VkKeyboardColor.NEGATIVE)
                 kb.add_line()
                 kb.add_button('Назад', VkKeyboardColor.SECONDARY)
-                msg_text = f"📊 {market[1]}\n\nДа: {p_yes} FORT | Нет: {p_no} FORT\n\nНапиши сумму ставки после нажатия кнопки"
-                vk.messages.send(user_id=user_id, message=msg_text, keyboard=kb.get_keyboard(), random_id=random.randint(1, 2**31))
+                
+                msg_text = f"📊 {market[1]}\nДа: {p_yes} | Нет: {p_no} FORT\n\nНапиши сумму ставки после нажатия кнопки"
+                vk.messages.send(user_id=user_id, message=msg_text, attachment=attachment, keyboard=kb.get_keyboard(), random_id=random.randint(1, 2**31))
         except:
             pass
     
