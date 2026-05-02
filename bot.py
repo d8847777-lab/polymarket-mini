@@ -8,6 +8,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import io
+
 # ===================== НАСТРОЙКИ =====================
 VK_TOKEN = "vk1.a.R3BzWRXp0snn9Ipz-WbWPC31QB3zcE4abLHIaX6WsimX8-CA_Z1NNRaJ1y1ZiVS7Jpw5yjVjrdVZ8yLuIp5zK6ctfP5u7MXMG-yF_FxLL2UaLQT7XQPtUolySZm9efjL4s8Ii_eakMjyml0MhdDY_mPoBss0dy7KWZxt5Ru9-uA0yqvYUdAHU2kLPMkZmfuApdBiDVrJ-7rMle9eg1eHyg"
 GROUP_ID = 238310451
@@ -151,6 +152,10 @@ for event in longpoll.listen():
     msg = event.object.message
     user_id = msg['from_id']
     text = msg.get('text', '')
+    
+    if not text:
+        continue
+    
     add_user(user_id)
     
     if text == 'Начать' or text == 'Назад':
@@ -177,7 +182,6 @@ for event in longpoll.listen():
             if market:
                 p_yes, p_no = get_price(market)
                 
-                # Строим график
                 c.execute("SELECT yes_tokens, no_tokens FROM markets WHERE id=?", (market_id,))
                 row = c.fetchone()
                 yes = row[0]
@@ -186,7 +190,6 @@ for event in longpoll.listen():
                 price_yes = no / total if total > 0 else 0.5
                 price_no = yes / total if total > 0 else 0.5
                 
-                # Симулируем историю цен (упрощённо)
                 history_yes = []
                 history_no = []
                 for i in range(10):
@@ -208,7 +211,6 @@ for event in longpoll.listen():
                 buf.seek(0)
                 plt.close()
                 
-                # Загружаем в ВК
                 upload = vk_api.VkUpload(vk_session)
                 photo = upload.photo_messages(buf)[0]
                 attachment = f"photo{photo['owner_id']}_{photo['id']}"
@@ -348,3 +350,6 @@ for event in longpoll.listen():
 
 Удачи, провидец!"""
         vk.messages.send(user_id=user_id, message=help_text, keyboard=main_keyboard(), random_id=random.randint(1, 2**31))
+    
+    else:
+        pass
